@@ -1,19 +1,43 @@
-const chai = require('chai');
-const chaiHttp = require('chai-http');
-const server = require('../index');
-const should = chai.should();
+const request = require('supertest');
+const {app} = require('../index.js'); // Assuming app is exported from your main file
+const cache = require('memory-cache');
+const fs = require('fs');
+const jwt = require('jsonwebtoken');
 
-chai.use(chaiHttp);
+let token = '';
 
-describe('/GET transactions/most-purchased/:userId', () => {
-    it('it should GET the most purchased product by the user within the date range', (done) => {
-        chai.request(server)
-            .get('/transactions/most-purchased/1?startDate=2017-01-01&endDate=2022-12-31')
-            .end((err, res) => {
-                res.should.have.status(200);
-                res.body.should.be.a('object');
-                res.body.should.have.property('mostPurchasedProduct');
-                done();
-            });
-    });
+beforeAll(async () => {
+  const response = await request(app).post('/login').send({ username: 'admin', password: 'admin' });
+  token = response.body.token;
 });
+
+
+beforeEach(() => {
+  cache.clear(); // Clear cache before each test
+});
+
+// Test for root endpoint
+test('GET / should return a welcome message', async () => {
+  const response = await request(app).get('/').set('Authorization', `Bearer ${token}`);
+  expect(response.status).toBe(200);
+  expect(response.text).toBe('Welcome to the Transactions API!');
+});
+
+
+// Test for CSV generation endpoint
+test('POST /transactions/generate should successfully generate CSV file', async () => {
+  const response = await request(app).post('/transactions/generate').set('Authorization', `Bearer ${token}`).send();
+  expect(response.status).toBe(200);
+  expect(response.text).toBe('CSV file generated');
+}, 200000);
+
+
+// Test for retrieving most purchased product endpoint
+test('GET /transactions/most-purchased/:userId should return the most purchased product', async () => {
+  const response = await request(app)
+    .get('/transactions/most-purchased/123')
+    .set('Authorization', `Bearer ${token}`)
+    .query({ startDate: '2024-01-01', endDate: '2024-02-29' });
+  expect(response.status).toBe(200);
+  expect(response.body).toHaveProperty('mostPurchasedProduct');
+}, 200000);
